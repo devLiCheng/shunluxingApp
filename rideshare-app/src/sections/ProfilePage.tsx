@@ -3,8 +3,27 @@ import { useAuth } from '@/context/AuthContext';
 import { Pencil, Shield, Star, LogOut, ChevronRight, ClipboardList, Car as CarIcon } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <div className="max-w-xl mx-auto space-y-5 animate-pulse">
+        <div className="bg-white rounded-2xl overflow-hidden shadow-card border border-slate-100">
+          <div className="h-24 bg-gradient-to-r from-indigo-500 via-blue-600 to-cyan-500" />
+          <div className="p-5 -mt-12">
+            <div className="w-[72px] h-[72px] rounded-2xl bg-white p-1 shadow-lg">
+              <div className="w-full h-full rounded-xl bg-slate-200" />
+            </div>
+            <div className="mt-3 space-y-2">
+              <div className="h-6 w-24 bg-slate-200 rounded" />
+              <div className="h-4 w-32 bg-slate-100 rounded" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) { navigate('/login'); return null; }
 
@@ -35,7 +54,6 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3 mt-1 text-sm text-slate-400">
               <span className="flex items-center gap-0.5"><Star className="w-3.5 h-3.5 fill-amber-400 stroke-amber-400" /> {user.rating}</span>
               <span>{user.tripCount}次行程</span>
-              <span>{user.joinDate}加入</span>
             </div>
           </div>
         </div>

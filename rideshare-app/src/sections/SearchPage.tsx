@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { tripStore } from '@/store/data';
+import { tripsApi } from '@/api/trips';
 import type { Trip } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,21 @@ export default function SearchPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [date, setDate] = useState('');
-  const [results, setResults] = useState<Trip[]>(tripStore.all().filter((t) => t.status === 'open'));
+  const [results, setResults] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
-  const handleSearch = () => {
-    setResults(tripStore.search(from, to, date));
+  const handleSearch = async () => {
+    setLoading(true);
+    try {
+      const res = await tripsApi.search({ from: from || undefined, to: to || undefined, date: date || undefined });
+      setResults(res.items);
+      setSearched(true);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,20 +62,22 @@ export default function SearchPage() {
             onChange={(e) => setDate(e.target.value)}
             className="h-11 flex-1 rounded-xl border-slate-200"
           />
-          <Button onClick={handleSearch} className="h-11 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-500/25">
+          <Button onClick={handleSearch} disabled={loading} className="h-11 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-500/25">
             <Search className="w-4 h-4 mr-1.5" />
-            搜索
+            {loading ? '搜索中...' : '搜索'}
           </Button>
         </div>
       </div>
 
       {/* Results */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-500">
-            共 <span className="font-semibold text-indigo-600">{results.length}</span> 个行程
-          </span>
-        </div>
+        {searched && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-500">
+              共 <span className="font-semibold text-indigo-600">{results.length}</span> 个行程
+            </span>
+          </div>
+        )}
 
         {results.map((trip, idx) => (
           <Link key={trip.id} to={`/trip/${trip.id}`} className="block stagger-item" style={{ animationDelay: `${idx * 0.06}s` }}>
@@ -72,17 +85,17 @@ export default function SearchPage() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-400 to-cyan-500 flex items-center justify-center text-white font-bold shrink-0 shadow-md">
-                    {trip.driver.name[0]}
+                    {trip.driver?.name?.[0] || '?'}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-800 text-sm">{trip.driver.name}</span>
+                      <span className="font-semibold text-slate-800 text-sm">{trip.driver?.name}</span>
                       <span className="flex items-center gap-0.5 text-xs text-amber-600">
                         <Star className="w-3 h-3 fill-amber-400 stroke-amber-400" />
-                        {trip.driver.rating}
+                        {trip.driver?.rating}
                       </span>
-                      <span className="text-xs text-slate-300">· {trip.driver.tripCount}次</span>
-                      {trip.driver.driverVerified && (
+                      <span className="text-xs text-slate-300">· {trip.driver?.tripCount}次</span>
+                      {trip.driver?.driverVerified && (
                         <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50/50 text-[10px] h-5 px-1.5">
                           认证
                         </Badge>
@@ -120,7 +133,7 @@ export default function SearchPage() {
           </Link>
         ))}
 
-        {results.length === 0 && (
+        {searched && results.length === 0 && (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-card">
             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
               <Car className="w-8 h-8 text-slate-300" />

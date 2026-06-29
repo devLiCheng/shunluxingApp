@@ -1,10 +1,20 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { tripStore } from '@/store/data';
+import { tripsApi } from '@/api/trips';
+import type { Trip } from '@/types';
 import { Car, MapPin, Calendar, ArrowRight, Shield, Users, Star, Sparkles, Navigation, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function HomePage() {
-  const trips = tripStore.all().filter((t) => t.status === 'open').slice(0, 6);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    tripsApi.search({ limit: 6 })
+      .then((res) => setTrips(res.items))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="space-y-10">
@@ -82,64 +92,87 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-3">
-          {trips.map((trip, idx) => (
-            <Link key={trip.id} to={`/trip/${trip.id}`} className={`stagger-item`} style={{ animationDelay: `${0.05 * (idx + 4)}s` }}>
-              <div className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 card-hover group cursor-pointer">
-                {/* Driver row */}
+        {loading ? (
+          <div className="grid md:grid-cols-2 gap-3">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 animate-pulse">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
-                      {trip.driver.name[0]}
-                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-slate-200" />
                     <div>
-                      <div className="text-sm font-semibold text-slate-800">{trip.driver.name}</div>
-                      <div className="flex items-center gap-1 text-xs">
-                        <Star className="w-3 h-3 fill-amber-400 stroke-amber-400" />
-                        <span className="text-amber-600 font-medium">{trip.driver.rating}</span>
+                      <div className="h-4 w-16 bg-slate-200 rounded mb-1" />
+                      <div className="h-3 w-10 bg-slate-100 rounded" />
+                    </div>
+                  </div>
+                  <div className="h-7 w-14 bg-slate-200 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-3/4 bg-slate-100 rounded" />
+                  <div className="h-4 w-2/3 bg-slate-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-3">
+            {trips.map((trip, idx) => (
+              <Link key={trip.id} to={`/trip/${trip.id}`} className="stagger-item" style={{ animationDelay: `${0.05 * (idx + 4)}s` }}>
+                <div className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 card-hover group cursor-pointer">
+                  {/* Driver row */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
+                        {trip.driver?.name?.[0] || '?'}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">{trip.driver?.name}</div>
+                        <div className="flex items-center gap-1 text-xs">
+                          <Star className="w-3 h-3 fill-amber-400 stroke-amber-400" />
+                          <span className="text-amber-600 font-medium">{trip.driver?.rating}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 text-sm font-bold px-3 py-1 rounded-xl border border-indigo-100">
+                      ¥{trip.price}
+                    </div>
+                  </div>
+
+                  {/* Route */}
+                  <div className="flex items-stretch gap-3 pl-1">
+                    <div className="flex flex-col items-center pt-1.5 gap-0">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 ring-2 ring-indigo-100" />
+                      <div className="w-0.5 flex-1 bg-gradient-to-b from-indigo-200 to-cyan-200 my-1 mx-auto" style={{ minHeight: '24px' }} />
+                      <div className="w-2.5 h-2.5 rounded-full bg-cyan-500 ring-2 ring-cyan-100" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="pb-3">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{trip.from}</p>
+                        <p className="text-xs text-slate-400">出发</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800 truncate">{trip.to}</p>
+                        <p className="text-xs text-slate-400">到达</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 text-sm font-bold px-3 py-1 rounded-xl border border-indigo-100">
-                    ¥{trip.price}
+
+                  <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-4 text-xs text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {trip.date} {trip.time}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      余{trip.availableSeats}/{trip.seats}座
+                    </span>
                   </div>
                 </div>
+              </Link>
+            ))}
+          </div>
+        )}
 
-                {/* Route */}
-                <div className="flex items-stretch gap-3 pl-1">
-                  <div className="flex flex-col items-center pt-1.5 gap-0">
-                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 ring-2 ring-indigo-100" />
-                    <div className="w-0.5 flex-1 bg-gradient-to-b from-indigo-200 to-cyan-200 my-1 mx-auto" style={{ minHeight: '24px' }} />
-                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-500 ring-2 ring-cyan-100" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="pb-3">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{trip.from}</p>
-                      <p className="text-xs text-slate-400">出发</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800 truncate">{trip.to}</p>
-                      <p className="text-xs text-slate-400">到达</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-3 pt-3 border-t border-slate-50 flex items-center gap-4 text-xs text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {trip.date} {trip.time}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" />
-                    余{trip.availableSeats}/{trip.seats}座
-                  </span>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {trips.length === 0 && (
+        {!loading && trips.length === 0 && (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-card">
             <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
               <Car className="w-8 h-8 text-slate-300" />

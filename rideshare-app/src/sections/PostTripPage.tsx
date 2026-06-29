@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { tripStore } from '@/store/data';
+import { tripsApi } from '@/api/trips';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,7 @@ export default function PostTripPage() {
   const [price, setPrice] = useState(50);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   if (!user) {
     return (
@@ -45,11 +46,18 @@ export default function PostTripPage() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError('');
     if (!from || !to || !date || !time) { setError('请填写完整行程信息'); return; }
-    tripStore.create({ driverId: user.id, driver: user, from, to, date, time, seats, availableSeats: seats, price, note });
-    navigate('/my-trips', { replace: true });
+    setLoading(true);
+    try {
+      await tripsApi.create({ from, to, date, time, seats, price, note: note || undefined });
+      navigate('/my-trips', { replace: true });
+    } catch (err: any) {
+      setError(err.message || '发布失败，请重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -121,9 +129,9 @@ export default function PostTripPage() {
 
         {error && <p className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2.5">{error}</p>}
 
-        <Button type="submit" className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-500/25 text-base font-semibold">
+        <Button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-500/25 text-base font-semibold">
           <Send className="w-4 h-4 mr-2" />
-          发布行程
+          {loading ? '发布中...' : '发布行程'}
         </Button>
       </form>
     </div>

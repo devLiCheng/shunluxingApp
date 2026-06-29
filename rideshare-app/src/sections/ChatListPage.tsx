@@ -1,11 +1,24 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { chatStore } from '@/store/data';
+import { chatsApi } from '@/api/chats';
+import { getOtherParticipant } from '@/types';
+import type { Chat } from '@/types';
 import { Button } from '@/components/ui/button';
 import { MessageSquareMore, Car } from 'lucide-react';
 
 export default function ChatListPage() {
   const { user } = useAuth();
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    chatsApi.getMyChats()
+      .then(setChats)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user]);
 
   if (!user) {
     return (
@@ -19,13 +32,25 @@ export default function ChatListPage() {
     );
   }
 
-  const chats = chatStore.userChats(user.id).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const sorted = [...chats].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   return (
     <div className="max-w-xl mx-auto space-y-4">
       <h1 className="text-2xl font-bold text-slate-900">消息</h1>
 
-      {chats.length === 0 ? (
+      {loading ? (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 animate-pulse flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-200 shrink-0" />
+              <div className="flex-1">
+                <div className="h-4 w-20 bg-slate-200 rounded mb-1" />
+                <div className="h-3 w-32 bg-slate-100 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-100 shadow-card">
           <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
             <MessageSquareMore className="w-8 h-8 text-slate-300" />
@@ -35,9 +60,8 @@ export default function ChatListPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {chats.map((chat, idx) => {
-            const otherId = chat.participants.find((p) => p !== user.id)!;
-            const other = chatStore.getUserById(otherId);
+          {sorted.map((chat, idx) => {
+            const other = getOtherParticipant(chat, user.id);
             return (
               <Link key={chat.id} to={`/chat/${chat.id}`} className="block stagger-item" style={{ animationDelay: `${idx * 0.05}s` }}>
                 <div className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 card-hover flex items-center gap-3 cursor-pointer">

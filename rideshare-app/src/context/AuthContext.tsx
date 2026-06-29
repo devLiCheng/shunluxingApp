@@ -1,53 +1,76 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User } from '@/types';
-import { auth as authService } from '@/store/data';
+import { authApi } from '@/api/auth';
+import { ApiError } from '@/api/client';
 
 interface AuthContextType {
   user: User | null;
-  login: (phone: string, password: string) => boolean;
-  register: (name: string, phone: string, password: string) => boolean;
+  loading: boolean;
+  login: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Restore session on mount
   useEffect(() => {
-    setUser(authService.current());
+    const token = localStorage.getItem('rs_token');
+    if (token) {
+      authApi.getMe()
+        .then((u) => setUser(u))
+        .catch(() => {
+          localStorage.removeItem('rs_token');
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, []);
 
-  const login = (phone: string, password: string) => {
-    const u = authService.login(phone, password);
-    if (u) {
-      setUser(u);
-      return true;
+  const login = useCallback(async (phone: string, password: string) => {
+    try {
+      const res = await authApi.login(phone, password);
+      setUser(res.user);
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '登录失败，请重试';
+      return { success: false, error: msg };
     }
-    return false;
-  };
+  }, []);
 
-  const register = (name: string, phone: string, password: string) => {
-    const u = authService.register(name, phone, password);
-    if (u) {
-      setUser(u);
-      return true;
+  const register = useCallback(async (name: string, phone: string, password: string) => {
+    try {
+      const res = await authApi.register(name, phone, password);
+      setUser(res.user);
+      return { success: true };
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '注册失败，请重试';
+      return { success: false, error: msg };
     }
-    return false;
-  };
+  }, []);
 
-  const logout = () => {
-    authService.logout();
+  const logout = useCallback(() => {
+    authApi.logout();
     setUser(null);
-  };
+  }, []);
 
-  const refresh = () => {
-    setUser(authService.current());
-  };
+  const refresh = useCallback(async () => {
+    try {
+      const u = await authApi.getMe();
+      setUser(u);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

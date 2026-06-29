@@ -13,17 +13,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!phone || !password) {
       setError('请填写手机号和密码');
       return;
     }
-    const ok = login(phone, password);
-    if (!ok) {
-      setError('手机号或密码错误（密码需6位以上）');
+    setLoading(true);
+    const result = await login(phone, password);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error || '登录失败');
       return;
     }
     navigate('/');
@@ -81,8 +84,8 @@ export default function LoginPage() {
           {error && (
             <p className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2.5">{error}</p>
           )}
-          <Button type="submit" className="w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-500/25 text-sm font-semibold">
-            登录
+          <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 shadow-md shadow-indigo-500/25 text-sm font-semibold">
+            {loading ? '登录中...' : '登录'}
           </Button>
           <div className="text-center">
             <span className="text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg">

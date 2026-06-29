@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { driverStore } from '@/store/data';
+import { driverApi } from '@/api/driver';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Upload, Car, IdCard, Send, Pencil, CheckCircle } from 'lucide-react';
 
@@ -72,21 +72,24 @@ export default function DriverVerifyPage() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError('');
     if (!carModel || !carPlate || !carColor) { setError('请填写完整车辆信息'); return; }
     if (!user.driverVerified && (!idCard || idCard.length !== 18)) { setError('请输入正确的18位身份证号'); return; }
     setSubmitting(true);
-    setTimeout(() => {
+    try {
       if (!user.driverVerified) {
-        driverStore.verify(user.id, { idCard, carModel, carPlate, carColor });
+        await driverApi.verify({ idCard, carModel, carPlate, carColor });
       } else {
-        driverStore.updateVehicle(user.id, { carModel, carPlate, carColor });
+        await driverApi.updateVehicle({ carModel, carPlate, carColor });
       }
-      refresh();
-      setSubmitting(false);
+      await refresh();
       navigate(user.driverVerified ? '/profile' : '/post', { replace: true });
-    }, 600);
+    } catch (err: any) {
+      setError(err.message || '操作失败，请重试');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, setFn: (v: string | null) => void) => {
@@ -112,7 +115,7 @@ export default function DriverVerifyPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            {isVerifiedEdit ? '修改车辆信息' : user.driverVerified ? '车主认证' : '车主认证'}
+            {isVerifiedEdit ? '修改车辆信息' : '车主认证'}
           </h1>
           <p className="text-sm text-slate-400">
             {isVerifiedEdit ? '更新您的车辆信息' : '完成实名认证后即可发布行程'}

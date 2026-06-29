@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { chatStore } from '@/store/data';
-import type { Message } from '@/types';
+import { chatsApi } from '@/api/chats';
+import { getOtherParticipant } from '@/types';
+import type { Message, Chat } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Send, Car, MoreVertical } from 'lucide-react';
@@ -13,12 +14,30 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const [text, setText] = useState('');
   const [msgs, setMsgs] = useState<Message[]>([]);
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const pollRef = useRef<number | undefined>(undefined);
+
+  const loadMessages = useCallback(async () => {
+    if (!chatId) return;
+    try {
+      const res = await chatsApi.getMessages(chatId);
+      setChat(res.chat);
+      setMsgs(res.messages);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, [chatId]);
 
   useEffect(() => {
-    if (!chatId) return;
-    setMsgs(chatStore.messages(chatId));
-  }, [chatId]);
+    loadMessages();
+    // Poll every 3 seconds
+    pollRef.current = setInterval(loadMessages, 3000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [loadMessages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -26,7 +45,17 @@ export default function ChatPage() {
 
   if (!user) { navigate('/login'); return null; }
 
-  const chat = chatStore.userChats(user.id).find((c) => c.id === chatId);
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-11rem)] animate-pulse">
+        <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+          <div className="w-10 h-10 rounded-xl bg-slate-200" />
+          <div className="h-4 w-20 bg-slate-200 rounded" />
+        </div>
+      </div>
+    );
+  }
+
   if (!chat) {
     return (
       <div className="text-center py-20 text-slate-400">
@@ -36,18 +65,18 @@ export default function ChatPage() {
     );
   }
 
-  const otherId = chat.participants.find((p) => p !== user.id)!;
-  const other = chatStore.getUserById(otherId);
+  const other = getOtherParticipant(chat, user.id);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!text.trim() || !chatId) return;
-    const msg = chatStore.send(chatId, user.id, text.trim());
-    setMsgs((prev) => [...prev, msg]);
+    const content = text.trim();
     setText('');
-    setTimeout(() => {
-      const reply = chatStore.send(chatId, otherId, getAutoReply(user.name));
-      setMsgs((prev) => [...prev, reply]);
-    }, 1500);
+    try {
+      const msg = await chatsApi.sendMessage(chatId, content);
+      setMsgs((prev) => [...prev, msg]);
+    } catch (e: any) {
+      alert(e.message || '发送失败');
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -135,9 +164,4 @@ export default function ChatPage() {
 function formatMsgTime(iso: string): string {
   const d = new Date(iso);
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-function getAutoReply(yourName: string): string {
-  const replies = ['好的，收到！', '没问题，到时候见', `好的，${yourName}，路上注意安全`, '嗯嗯，了解了', '明白了，保持联系', 'ok，出发前我再联系你确认'];
-  return replies[Math.floor(Math.random() * replies.length)];
 }

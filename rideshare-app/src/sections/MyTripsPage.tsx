@@ -1,6 +1,10 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { tripStore } from '@/store/data';
+import { tripsApi } from '@/api/trips';
+import { bookingsApi } from '@/api/bookings';
+import type { BookingRecord } from '@/api/bookings';
+import type { Trip } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,6 +12,20 @@ import { MapPin, Calendar, Users, Plus, Car } from 'lucide-react';
 
 export default function MyTripsPage() {
   const { user } = useAuth();
+  const [myTrips, setMyTrips] = useState<Trip[]>([]);
+  const [myBookings, setMyBookings] = useState<BookingRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([
+      tripsApi.getMyTrips().catch(() => [] as Trip[]),
+      bookingsApi.getMyBookings().catch(() => [] as BookingRecord[]),
+    ]).then(([trips, bookings]) => {
+      setMyTrips(trips);
+      setMyBookings(bookings);
+    }).finally(() => setLoading(false));
+  }, [user]);
 
   if (!user) {
     return (
@@ -21,20 +39,17 @@ export default function MyTripsPage() {
     );
   }
 
-  const myTrips = tripStore.myTrips(user.id);
-  const myBookings = tripStore.myBookings(user.id);
-
   const statusMap: Record<string, { label: string; color: string }> = {
     open: { label: '进行中', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     full: { label: '已满员', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    done: { label: '已完成', color: 'bg-slate-50 text-slate-500 border-slate-200' },
+    completed: { label: '已完成', color: 'bg-slate-50 text-slate-500 border-slate-200' },
     cancelled: { label: '已取消', color: 'bg-red-50 text-red-500 border-red-200' },
   };
 
-  const TripCard = ({ trip }: { trip: any }) => {
-    const status = statusMap[trip.status];
+  const TripCard = ({ trip, isBooking }: { trip: Trip; isBooking?: boolean }) => {
+    const status = statusMap[trip.status] || statusMap.open;
     return (
-      <Link to={`/trip/${trip.id}`}>
+      <Link to={`/trip/${isBooking ? trip.id : trip.id}`}>
         <div className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 card-hover mb-2.5 cursor-pointer">
           <div className="flex items-center justify-between mb-2">
             <Badge variant="outline" className={status.color}>{status.label}</Badge>
@@ -58,6 +73,52 @@ export default function MyTripsPage() {
     );
   };
 
+  const BookingCard = ({ booking }: { booking: BookingRecord }) => {
+    const trip = booking.trip;
+    if (!trip) return null;
+    const status = statusMap[trip.status] || statusMap.open;
+    return (
+      <Link to={`/trip/${trip.id}`}>
+        <div className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 card-hover mb-2.5 cursor-pointer">
+          <div className="flex items-center justify-between mb-2">
+            <Badge variant="outline" className={status.color}>{status.label}</Badge>
+            <span className="text-lg font-bold text-indigo-600">¥{trip.price}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm mb-2">
+            <MapPin className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="text-slate-700 font-medium truncate">{trip.from}</span>
+            <span className="text-slate-300 mx-1 shrink-0">→</span>
+            <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="text-slate-700 font-medium truncate">{trip.to}</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{trip.date} {trip.time}</span>
+          </div>
+        </div>
+      </Link>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-5 max-w-xl mx-auto">
+        <div className="h-8 w-32 bg-slate-200 rounded animate-pulse" />
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-2xl p-4 shadow-card border border-slate-100 animate-pulse">
+              <div className="h-6 w-20 bg-slate-200 rounded-xl mb-2" />
+              <div className="h-4 w-3/4 bg-slate-100 rounded mb-2" />
+              <div className="h-4 w-1/2 bg-slate-100 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const defaultTab = myTrips.length > 0 ? 'my' : 'booked';
+
   return (
     <div className="space-y-5 max-w-xl mx-auto">
       <div className="flex items-center justify-between">
@@ -71,7 +132,7 @@ export default function MyTripsPage() {
         )}
       </div>
 
-      <Tabs defaultValue={myTrips.length > 0 ? 'my' : 'booked'}>
+      <Tabs defaultValue={defaultTab}>
         <TabsList className="w-full bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="my" className="flex-1 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm text-sm">
             我发布的 ({myTrips.length})
@@ -87,7 +148,7 @@ export default function MyTripsPage() {
         </TabsContent>
 
         <TabsContent value="booked" className="mt-4">
-          {myBookings.length > 0 ? myBookings.map((trip) => <TripCard key={trip.id} trip={trip} />)
+          {myBookings.length > 0 ? myBookings.map((b) => <BookingCard key={b.id} booking={b} />)
             : <EmptyState message="还没有预订过行程" linkTo="/search" action="去找车" />}
         </TabsContent>
       </Tabs>
