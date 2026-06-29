@@ -1,0 +1,122 @@
+version: '3.9'
+
+services:
+  # ──────────────────────────────────────────
+  # MySQL 数据库
+  # ──────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: rideshare_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: rideshare
+      MYSQL_USER: rideshare
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-rideshare123}
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${MYSQL_ROOT_PASSWORD:-root}']
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks:
+      - rideshare_net
+
+  # ──────────────────────────────────────────
+  # Redis 缓存
+  # ──────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rideshare_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rideshare_net
+
+  # ──────────────────────────────────────────
+  # NestJS 后端 API
+  # ──────────────────────────────────────────
+  backend:
+    build:
+      context: ./rideshare-backend
+      dockerfile: Dockerfile
+    container_name: rideshare_backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: rideshare
+      DB_PASS: ${MYSQL_PASSWORD:-rideshare123}
+      DB_NAME: rideshare
+      JWT_SECRET: ${JWT_SECRET:-rideshare_jwt_secret_change_in_production_2024}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FRONTEND_URL: ${FRONTEND_URL:-http://113.20.7.212}
+      ADMIN_URL: ${ADMIN_URL:-http://113.20.7.212:4000}
+    ports:
+      - '3000:3000'
+    networks:
+      - rideshare_net
+
+  # ──────────────────────────────────────────
+  # 前端 H5/Web App（Vite + React）
+  # ──────────────────────────────────────────
+  app:
+    build:
+      context: ./rideshare-app
+      dockerfile: Dockerfile
+    container_name: rideshare_app
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    networks:
+      - rideshare_net
+
+  # ──────────────────────────────────────────
+  # 管理后台（Arco Design Pro）
+  # ──────────────────────────────────────────
+  admin:
+    build:
+      context: ./rideshare-admin
+      dockerfile: Dockerfile
+    container_name: rideshare_admin
+    restart: unless-stopped
+    ports:
+      - '4000:80'
+    networks:
+      - rideshare_net
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  rideshare_net:
+    driver: bridge
